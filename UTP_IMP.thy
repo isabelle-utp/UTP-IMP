@@ -45,6 +45,22 @@ lift_definition itree_prog :: "(nat, 's) htree \<Rightarrow> 's prog" ("\<lbrakk
 definition final_states :: "'s prog \<Rightarrow> 's \<Rightarrow> 's set" where
 "final_states P s = {s'. Rep_prog P (s, s')}"
 
+lemma some_elem_set_single [code]: "some_elem (set [x]) = x"
+  by simp
+
+text \<open> Run a program starting from a default state, and provides a status report on the final state(s) \<close>
+
+datatype 's status = 
+  terminate 's |  \<comment> \<open> The program terminated with a single finale state \<close>
+  abort |  \<comment> \<open> The program provided no final state, and so terminated \<close>
+  multiple \<comment> \<open> There were multiple final states, implying non-determinism \<close>
+
+definition exec_prog :: "'s::default prog \<Rightarrow> 's status" where
+"exec_prog P = (let S = final_states P default in
+                if S = {} then abort
+                else if card S = 1 then terminate (some_elem S)
+                else multiple)"
+
 lemma finals_itree_prog [code]: "final_states \<lbrakk>P\<rbrakk>\<^sub>I s = \<^bold>R (P s)"
   by (metis (mono_tags, lifting) Collect_cong case_prodD case_prodI final_states_def itree_prog.rep_eq mem_Collect_eq retvals_def)
 
@@ -63,7 +79,7 @@ lemma code_seq [code]: "seq_prog \<lbrakk>P\<rbrakk>\<^sub>I \<lbrakk>Q\<rbrakk>
 lemma code_cond [code]: "cond_prog \<lbrakk>P\<rbrakk>\<^sub>I b \<lbrakk>Q\<rbrakk>\<^sub>I = \<lbrakk>\<lambda> s. if b s then P s else Q s\<rbrakk>\<^sub>I"
   by (transfer, auto simp add: rcond_def, expr_auto)
 
-lemma code_choice [code]: "\<lbrakk>P\<rbrakk>\<^sub>I + \<lbrakk>Q\<rbrakk>\<^sub>I = \<lbrakk> \<lambda> s. Vis {0 \<mapsto> P s, 1 \<mapsto> Q s} \<rbrakk>\<^sub>I"
+lemma code_choice [code]: "\<lbrakk>P\<rbrakk>\<^sub>I + \<lbrakk>Q\<rbrakk>\<^sub>I = \<lbrakk>\<lambda> s. Vis {0 \<mapsto> P s, 1 \<mapsto> Q s}\<rbrakk>\<^sub>I"
   by (transfer, auto)
 
 lemma code_while [code]: "while_prog b \<lbrakk>P\<rbrakk>\<^sub>I = \<lbrakk>iterate b P\<rbrakk>\<^sub>I"

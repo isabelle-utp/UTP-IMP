@@ -16,14 +16,19 @@ definition myprog1 :: "st prog" where
 definition myprog2 :: "st prog" where
 "myprog2 = (x := 0) + (x := 3) + (x := 1)"
 
-
 definition Eucl :: "int \<Rightarrow> int \<Rightarrow> st prog" where
 "Eucl X Y = (x := X ;; y := Y ;; while x \<noteq> y do if x < y then y := y - x else x := x - y fi od)"
 
 value "final_states myprog1 default"
 
+value "exec_prog myprog1"
+
 value "final_states myprog2 default"
 
+value "exec_prog myprog2"
+
 value "final_states (Eucl 21 15) default"
+
+value "exec_prog (Eucl 21 15)"
 
 end

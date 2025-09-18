@@ -4,6 +4,8 @@ theory UTP_IMP
   imports "UTP2.utp" "Interaction_Trees.ITrees"
 begin
 
+unbundle UTP_Syntax
+
 subsection \<open> Type and Constructors \<close>
 
 typedef 's prog = "UNIV :: 's hrel set" ..
@@ -38,9 +40,62 @@ adhoc_overloading useq \<rightleftharpoons> seq_prog
 adhoc_overloading ucond \<rightleftharpoons> cond_prog
 adhoc_overloading uwhile \<rightleftharpoons> while_prog
 
+subsection \<open> Hoare Logic \<close>
+
+lift_definition hoare_prog :: "('s \<Rightarrow> bool) \<Rightarrow> 's prog \<Rightarrow> ('s \<Rightarrow> 's \<Rightarrow> bool) \<Rightarrow> bool"
+  is "hoare_rel_r" .
+
+adhoc_overloading hoare_rel \<rightleftharpoons> hoare_prog
+
+lemma hl_conseq: "\<lbrakk> H{P\<^sub>2} C :: 's prog {Q\<^sub>2}; `P\<^sub>1 \<longrightarrow> P\<^sub>2`; `Q\<^sub>2 \<longrightarrow> Q\<^sub>1` \<rbrakk> \<Longrightarrow> H{P\<^sub>1} C {Q\<^sub>1}"
+  by (transfer, fact hoare_r_conseq)
+
+lemma hl_assigns:
+  assumes "`P \<longrightarrow> \<sigma> \<dagger> Q`"
+  shows "H{P} \<langle>\<sigma>\<rangle>\<^sub>a :: 's prog {Q}"
+  using assms by (transfer, simp add: assigns_hoare_r)
+
+lemma hl_assign:
+  assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
+  shows "H{P} x := e :: 's prog {Q}"
+  using assms by (fact hl_assigns)
+
+lemma hl_seq: 
+  fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
+  assumes "H{P} C\<^sub>1 {Q}" "H{Q} C\<^sub>2 {R}"
+  shows "H{P} C\<^sub>1 ;; C\<^sub>2 {R}"
+  using assms by (transfer, simp add: seq_hoare_r)
+
+lemma hl_cond:
+  fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
+  assumes "H{B \<and> P} C\<^sub>1 {Q}" "H{\<not>B \<and> P} C\<^sub>2 {Q}"
+  shows "H{P} if B then C\<^sub>1 else C\<^sub>2 fi {Q}"
+  using assms
+  by (transfer, simp add: cond_hoare_r)
+
+lemma hl_choice:
+  fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
+  assumes "H{P} C\<^sub>1 {Q}" "H{P} C\<^sub>2 {Q}"
+  shows "H{P} C\<^sub>1 + C\<^sub>2 {Q}"
+  using assms
+  by (transfer, simp add: hoare_ndet)
+
+lemma hl_while:
+  fixes C :: "'s prog"
+  assumes "H{P \<and> B} C {P}"
+  shows "H{P} while B do C od {\<not>B \<and> P}"
+  using assms by (transfer, simp add: while_hoare_r)
+
 subsection \<open> ITree Code Generation \<close>
 
+text \<open> The program of an ITree captures all possible initial/final state pairs. Any divergent or
+  abortive behaviour is simply excluded from the relation. \<close>
+
 lift_definition itree_prog :: "(nat, 's) htree \<Rightarrow> 's prog" ("\<lbrakk>_\<rbrakk>\<^sub>I") is "\<lambda> P (s, s'). s' \<in> \<^bold>R (P s)" .
+
+lemma hoare_itree_meaning:
+  "H{P} itree_prog C {Q} = (\<forall> s s'. P s \<and> s' \<in> \<^bold>R(C s) \<longrightarrow> Q s')"
+  by (transfer, auto simp add: hoare_meaning)
 
 definition final_states :: "'s prog \<Rightarrow> 's \<Rightarrow> 's set" where
 "final_states P s = {s'. Rep_prog P (s, s')}"

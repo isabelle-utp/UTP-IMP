@@ -40,6 +40,12 @@ adhoc_overloading useq \<rightleftharpoons> seq_prog
 adhoc_overloading ucond \<rightleftharpoons> cond_prog
 adhoc_overloading uwhile \<rightleftharpoons> while_prog
 
+no_adhoc_overloading uassigns \<rightleftharpoons> assigns_r
+no_adhoc_overloading uskip \<rightleftharpoons> skip
+no_adhoc_overloading useq \<rightleftharpoons> seq
+no_adhoc_overloading ucond \<rightleftharpoons> rcond
+no_adhoc_overloading uwhile \<rightleftharpoons> while_top
+
 subsection \<open> Hoare Logic \<close>
 
 lift_definition hoare_prog :: "('s \<Rightarrow> bool) \<Rightarrow> 's prog \<Rightarrow> ('s \<Rightarrow> 's \<Rightarrow> bool) \<Rightarrow> bool"
@@ -47,6 +53,8 @@ lift_definition hoare_prog :: "('s \<Rightarrow> bool) \<Rightarrow> 's prog \<R
 
 lift_definition thoare_prog :: "('s \<Rightarrow> bool) \<Rightarrow> 's prog \<Rightarrow> ('s \<Rightarrow> 's \<Rightarrow> bool) \<Rightarrow> bool"
   is "thoare_rel_r" .
+
+ML_file \<open>Spec_Utils.ML\<close>
 
 adhoc_overloading hoare_rel \<rightleftharpoons> hoare_prog
 adhoc_overloading thoare_rel \<rightleftharpoons> thoare_prog
@@ -117,17 +125,51 @@ lemma thl_choice:
   using assms
   by (transfer, simp add: thoare_ndet)
 
-lemma hl_while:
+lemma hl_while_core:
   fixes C :: "'s prog"
   assumes "H{P \<and> B} C {P}"
   shows "H{P} while B do C od {\<not>B \<and> P}"
   using assms by (transfer, simp add: while_hoare_r)
 
-lemma thl_while [hoare_safe]:
+lemma hl_while:
+  fixes C :: "'s prog"
+  assumes "`P \<longrightarrow> I`" "H{I \<and> B} C {I}" "`\<not>B \<and> I \<longrightarrow> Q`"
+  shows "H{P} while B do C od {Q}"
+  using assms(1,2,3) hl_conseq hl_while_core by blast
+
+lemma thl_while_core [hoare_safe]:
   fixes V :: "'s \<Rightarrow> 'a::wellorder" and S :: "'s prog"
   assumes "\<And> z. H[P \<and> B \<and> V = \<guillemotleft>z\<guillemotright>] S [P \<and> V < \<guillemotleft>z\<guillemotright>]"
   shows "H[P] while B do S od [\<not> B \<and> P]"
   using assms by (transfer, metis (mono_tags) while_thoare_r)
+
+lemma thl_while [hoare_safe]:
+  fixes V :: "'s \<Rightarrow> 'a::wellorder" and S :: "'s prog"
+  assumes "`P \<longrightarrow> I`" "\<And> z. H[I \<and> B \<and> V = \<guillemotleft>z\<guillemotright>] S [I \<and> V < \<guillemotleft>z\<guillemotright>]" "`\<not> B \<and> I \<longrightarrow> Q`"
+  shows "H[P] while B do S od [Q]"
+  using assms(1,2,3) thl_conseq thl_while_core by blast
+  
+subsection \<open> Proof Methods \<close>
+
+method assign = (rule hl_assign thl_assign)
+
+method if_then_else = (rule hl_cond thl_cond)
+
+method choice = (rule hl_choice thl_choice)
+
+method_setup sequence =
+\<open>
+Scan.peek (Args.named_term o Syntax.parse_term o Context.proof_of) >>
+   (fn rt => fn ctx => 
+     SIMPLE_METHOD (SUBGOAL (fn (goal, i) => Spec_Utils.inst_hoare_rule_tac @{thm hl_seq} "Q" ctx rt goal) 1))
+\<close> "apply the sequential law with an intermediate condition"
+
+method_setup while =
+\<open>
+Scan.peek (Args.named_term o Syntax.parse_term o Context.proof_of) >>
+   (fn rt => fn ctx => 
+     SIMPLE_METHOD (SUBGOAL (fn (goal, i) => Spec_Utils.inst_hoare_rule_tac @{thm hl_while} "I" ctx rt goal) 1))
+\<close> "while loop with invariant"
 
 subsection \<open> ITree Code Generation \<close>
 

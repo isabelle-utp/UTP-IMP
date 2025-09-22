@@ -23,6 +23,18 @@ value "final_states myprog1 default"
 
 value "exec_prog myprog1"
 
+lemma "H{True} myprog1 {x = 10}"
+  unfolding myprog1_def
+  apply (sequence "x = 0")
+   apply assign
+   apply subst_eval
+  apply (while "x \<le> 10")
+    apply simp
+   apply assign
+   apply subst_eval
+  apply simp
+  done
+
 value "final_states myprog2 default"
 
 value "exec_prog myprog2"

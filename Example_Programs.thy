@@ -27,11 +27,13 @@ lemma "H{True} myprog1 {x = 10}"
   unfolding myprog1_def
   apply (sequence "x = 0")
    apply assign
-   apply subst_eval
+   apply subst_eval'
+  apply simp
   apply (while "x \<le> 10")
     apply simp
    apply assign
-   apply subst_eval
+   apply subst_eval'
+   apply simp
   apply simp
   done
 

@@ -1,4 +1,4 @@
-section \<open> Simple Imperative Language with Code Generation Support \<close>
+section \<open> Simple Imperative Language with Code Generation Support built on UTP Relations \<close>
 
 theory UTP_IMP
   imports "UTP2.utp" "Interaction_Trees.ITrees"
@@ -8,22 +8,44 @@ unbundle UTP_Syntax
 
 subsection \<open> Type and Constructors \<close>
 
+text \<open> We first define a new (sub)type for programs. Generally for UTP, this type will correspond to a
+  characteristic non-empty subset of the relations over a particular alphabet that satisfy a number of 
+  healthiness conditions. Here, our programs are modelled simply as homogeneous relations over a state
+  type @{typ "'s"}, that is  @{typ "'s hrel"}, which is the underlying type of our definition. \<close>
+
 typedef 's prog = "UNIV :: 's hrel set" ..
+
+text \<open> The next command sets up the lifting package, which will allow us to define constructors for
+  programs in terms of underlying functions on relations. \<close>
 
 setup_lifting type_definition_prog
 
-lift_definition assigns_prog :: "'s subst \<Rightarrow> 's prog" is "\<lambda> \<sigma> :: 's \<Rightarrow> 's. assigns_r \<sigma>" .
+text \<open> We can now proceed to define the core constructors for programs, including, assignment,
+  sequential composition, conditional, etc. We do this by using the command @{command lift_definition},
+  which lifts a function on the underlying type into the defined subtype. This requires us to prove
+  that the expression following @{text "is"} inhabits the characteristic subset when all of its
+  arguments also do, that is, the characteristic subset set is closed under the given operator.
+  For UTP, the underlying type is the relation type over some alphabet family, and the characteristic
+  set is the set of healthy relations. 
+
+  In each definition, we give a type for each construct, and then give its definition as an existing 
+  constructor on UTP relations. We define assignment as the basic UTP relational assignment operator,
+  @{const assigns_r}. The "skip" operator is then an empty assignment. The other program operators
+  are defined similarly. The proofs in this case are trivial, since there are no healthiness conditions.
+\<close>
+
+lift_definition assigns_prog :: "'s subst \<Rightarrow> 's prog" is assigns_r .
 
 definition skip_prog :: "'s prog" where
 [code_unfold]: "skip_prog = assigns_prog id"
 
 lift_definition seq_prog :: "'s prog \<Rightarrow> 's prog \<Rightarrow> 's prog" is seq .
 
-lift_definition cond_prog :: "'s prog \<Rightarrow> (bool, 's) expr \<Rightarrow> 's prog \<Rightarrow> 's prog" is "\<lambda> P ( b::(bool, 's) expr) Q. rcond P b Q" .
+lift_definition cond_prog :: "'s prog \<Rightarrow> (bool, 's) expr \<Rightarrow> 's prog \<Rightarrow> 's prog" is rcond .
 
 lift_definition while_prog :: "(bool, 's) expr \<Rightarrow> 's prog \<Rightarrow> 's prog" is while_top .
 
-text \<open> Here, we use plus to model nondeterministic choice \<close>
+text \<open> Here, we use the plus operator to model nondeterministic choice. \<close>
 
 instantiation prog :: (type) plus
 begin
@@ -34,11 +56,20 @@ end
 
 subsection \<open> Overloaded Syntax \<close>
 
+text \<open> In order to help the process of setting up syntax for a language, we have defined a number
+  of polymorphic constants and associated syntax translation rules in 
+  @{theory Abstract_Prog_Syntax.Abstract_Prog_Syntax}. If we overload one of the constants,
+  such as @{const uassigns}, with a concrete constant, such as @{const assigns_prog}, the parser
+  will be extended with support for abstract program notation for these programs. \<close>
+
 adhoc_overloading uassigns \<rightleftharpoons> assigns_prog
 adhoc_overloading uskip \<rightleftharpoons> skip_prog
 adhoc_overloading useq \<rightleftharpoons> seq_prog
 adhoc_overloading ucond \<rightleftharpoons> cond_prog
 adhoc_overloading uwhile \<rightleftharpoons> while_prog
+
+text \<open> We also turn off the notation for UTP relations, so there is no ambiguity with the notation
+  on the @{typ "'s prog"} type. \<close>
 
 no_adhoc_overloading uassigns \<rightleftharpoons> assigns_r
 no_adhoc_overloading uskip \<rightleftharpoons> skip
@@ -46,7 +77,13 @@ no_adhoc_overloading useq \<rightleftharpoons> seq
 no_adhoc_overloading ucond \<rightleftharpoons> rcond
 no_adhoc_overloading uwhile \<rightleftharpoons> while_top
 
+text \<open> With these overloaded constants, we can now use intuitive program notation such as
+  @{term "x := e ;; if $x > 1 then y := 0 else II fi"}. \<close>
+
 subsection \<open> Hoare Logic \<close>
+
+text \<open> Next, we similarly lift the relational definition of Hoare triples (resp. partial and total 
+  correctness) to our program type, and import the notation. \<close>
 
 lift_definition hoare_prog :: "('s \<Rightarrow> bool) \<Rightarrow> 's prog \<Rightarrow> ('s \<Rightarrow> 's \<Rightarrow> bool) \<Rightarrow> bool"
   is "hoare_rel_r" .
@@ -58,6 +95,11 @@ ML_file \<open>Spec_Utils.ML\<close>
 
 adhoc_overloading hoare_rel \<rightleftharpoons> hoare_prog
 adhoc_overloading thoare_rel \<rightleftharpoons> thoare_prog
+
+text \<open> We can now also lift the Hoare logic laws using the theorems justified on the underlying
+  UTP theory. For example, we can use the consequence law for relational Hoare logic, @{thm hoare_r_conseq}.
+  We use the method @{method transfer} to recast the theorems on the underlying type, analogous to
+  the @{command lift_definition} command. \<close>
 
 lemma hl_conseq: "\<lbrakk> H{P\<^sub>2} C :: 's prog {Q\<^sub>2}; `P\<^sub>1 \<longrightarrow> P\<^sub>2`; `Q\<^sub>2 \<longrightarrow> Q\<^sub>1` \<rbrakk> \<Longrightarrow> H{P\<^sub>1} C {Q\<^sub>1}"
   by (transfer, fact hoare_r_conseq)
@@ -174,7 +216,11 @@ Scan.peek (Args.named_term o Syntax.parse_term o Context.proof_of) >>
 subsection \<open> ITree Code Generation \<close>
 
 text \<open> The program of an ITree captures all possible initial/final state pairs. Any divergent or
-  abortive behaviour is simply excluded from the relation. \<close>
+  abortive behaviour is simply excluded from the relation. The function @{term "\<^bold>R"} determines
+  the set of all final states (i.e. returning states) of an interaction tree. Programs in
+  ITrees are modelled as the type @{typ "'s \<Rightarrow> (nat, 's) itree"}, which has the synonym
+  @{typ "(nat, 's) htree"}. The natural number event type allows us to use events to model 
+  nondeterministic choices. \<close>
 
 lift_definition itree_prog :: "(nat, 's) htree \<Rightarrow> 's prog" ("\<lbrakk>_\<rbrakk>\<^sub>I") is "\<lambda> P (s, s'). s' \<in> \<^bold>R (P s)" .
 

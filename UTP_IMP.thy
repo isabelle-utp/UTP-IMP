@@ -2,6 +2,7 @@ section \<open> Simple Imperative Language with Code Generation Support built on
 
 theory UTP_IMP
   imports "UTP2.utp" "Interaction_Trees.ITrees"
+  keywords "execute" :: "diag" and "program" :: "thy_decl"
 begin
 
 unbundle UTP_Syntax
@@ -274,5 +275,59 @@ lemma code_choice [code]: "\<lbrakk>P\<rbrakk>\<^sub>I + \<lbrakk>Q\<rbrakk>\<^s
 
 lemma code_while [code]: "while_prog b \<lbrakk>P\<rbrakk>\<^sub>I = \<lbrakk>iterate b P\<rbrakk>\<^sub>I"
   by (transfer, auto simp add: retvals_iterate while_chain_form itree_chain_iff_rtc_chain)
+
+subsection \<open> Commands \<close>
+
+text \<open> We create a command to allow definition of programs. \<close>
+
+named_theorems prog_defs
+
+ML \<open>
+structure UTP_Program =
+struct
+
+fun mk_program (((n, p), st), body) ctx =
+  let open Syntax
+      val stT = read_typ ctx st
+      val ty = (check_typ ctx (Type (@{type_name prog}, [stT])))
+      val pat = read_term ctx p
+      val vs = map (fst o dest_Free) (HOLogic.strip_tuple pat)
+      val pat' = HOLogic.mk_tuple (map free vs)
+      val pty = HOLogic.mk_tupleT (map (snd o dest_Free) (HOLogic.strip_tuple pat))
+      val pbody = Type.constraint ty (parse_term ctx body)
+      val def = HOLogic.tupled_lambda pat' pbody
+      val attrs = @{attributes [code_unfold, prog_defs]};
+      fun mk_def ty x v = check_term ctx (Const ("Pure.eq", ty --> ty --> Term.propT) $ Free (x, ty) $ v);
+      val def_ty = pty --> ty        
+  in snd (Specification.definition (SOME (Binding.name n, SOME def_ty, NoSyn)) [] [] ((Binding.name (n ^ "_def"), attrs), mk_def def_ty n def) ctx) 
+  end;
+
+val parse_program =
+  let open Scan; open Parse in
+  ((name -- (Scan.optional term "()")) -- 
+   (Scan.optional (@{keyword "over"} |-- typ) "_") --
+   (@{keyword "="} |-- term))
+   end;  
+
+end;
+
+Outer_Syntax.command @{command_keyword program} "define an ITree program"
+  (UTP_Program.parse_program >> (Toplevel.local_theory NONE NONE o UTP_Program.mk_program));
+\<close>
+
+text \<open> We create a command to allow execution of programs. \<close>
+
+ML \<open> 
+let fun execute_cmd t ctx =
+  let val tm = Syntax.check_term ctx (Syntax.const @{const_name exec_prog} $ Syntax.parse_term ctx t)
+      val _ = Pretty.writeln (Syntax.pretty_term ctx (Value_Command.value ctx tm))
+  in ctx end;
+in
+Outer_Syntax.command @{command_keyword execute} "execute a UTP program"
+  (Parse.term >> (Toplevel.local_theory NONE NONE o execute_cmd))
+end
+\<close>
+
+declare [[literal_variables]]
 
 end

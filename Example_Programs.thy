@@ -16,8 +16,8 @@ definition myprog1 :: "st prog" where
 definition myprog2 :: "st prog" where
 "myprog2 = (x := 0) + (x := 3) + (x := 1)"
 
-definition Eucl :: "int \<Rightarrow> int \<Rightarrow> st prog" where
-"Eucl X Y = (x := X ;; y := Y ;; while x \<noteq> y do if x < y then y := y - x else x := x - y fi od)"
+program Eucl "(X :: int, Y :: int)" over st =
+"x := X ; y := Y ; while x \<noteq> y do if x < y then y := y - x else x := x - y fi od"
 
 value "final_states myprog1 default"
 
@@ -41,8 +41,39 @@ value "final_states myprog2 default"
 
 value "exec_prog myprog2"
 
-value "final_states (Eucl 21 15) default"
+value "final_states (Eucl (21, 15)) default"
 
-value "exec_prog (Eucl 21 15)"
+execute "Eucl(21, 15)"
+
+lemma Eucl_correct: "H{True} Eucl(X, Y) {\<bar>x\<bar> = gcd X Y}"
+  apply (simp add: Eucl_def)
+  apply (sequence "x = X")
+   apply assign
+   apply subst_eval'
+   apply simp
+  apply (sequence "x = X \<and> y = Y")
+   apply assign
+     apply subst_eval'
+   apply simp
+  apply (while "gcd x y = gcd X Y")
+    apply simp
+   apply if_then_else
+    apply assign
+  apply subst_eval
+    apply (metis (no_types, lifting) SEXP_def gcd.commute gcd_diff1 tautI)
+   apply assign
+  apply subst_eval
+   apply (metis (no_types, lifting) SEXP_def gcd_diff1 tautI)
+  apply expr_simp
+  done
+
+program Eucl_ann "(X :: int, Y :: int)" over st =
+"x := X ; y := Y ; while x \<noteq> y invariant gcd X Y = gcd x y do if x < y then y := y - x else x := x - y fi od"
+
+lemma Eucl_correct': "H{True} Eucl_ann(X, Y) {\<bar>x\<bar> = gcd X Y}"
+  apply vcg
+  apply (metis gcd.commute gcd_diff1)
+  apply (simp add: gcd_diff1)
+  done
 
 end

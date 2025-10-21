@@ -1,7 +1,7 @@
 section \<open> Simple Imperative Language with Code Generation Support built on UTP Relations \<close>
 
 theory UTP_IMP
-  imports "UTP2.utp" "Interaction_Trees.ITrees"
+  imports "Explorer.Explorer" "UTP2.utp" "Interaction_Trees.ITrees" 
   keywords "execute" :: "diag" and "program" :: "thy_decl"
 begin
 
@@ -118,15 +118,24 @@ lemma thl_assigns:
   shows "H[P] \<langle>\<sigma>\<rangle>\<^sub>a :: 's prog [Q]"
   using assms by (transfer, simp add: assigns_thoare_r)
 
-lemma hl_assign:
+lemma hl_assign [hoare_safe]:
   assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
   shows "H{P} x := e :: 's prog {Q}"
   using assms by (fact hl_assigns)
 
-lemma thl_assign:
+lemma thl_assign [hoare_safe]:
   assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
   shows "H[P] x := e :: 's prog [Q]"
   using assms by (fact thl_assigns)
+
+lemma hl_forward_assign [hoare_safe]:
+  fixes C :: "'s prog"
+  assumes "vwb_lens x" "\<And> x\<^sub>0. H{$x = v\<lbrakk>\<guillemotleft>x\<^sub>0\<guillemotright>/x\<rbrakk> \<and> P\<lbrakk>\<guillemotleft>x\<^sub>0\<guillemotright>/x\<rbrakk>} C {Q}"
+  shows "H{P} x := v ;; C {Q}"
+  using assms
+  apply transfer
+  using assigns_init_hoare_general apply blast
+  done
 
 lemma hl_seq: 
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
@@ -140,7 +149,7 @@ lemma thl_seq:
   shows "H[P] C\<^sub>1 ;; C\<^sub>2 [R]"
   using assms by (transfer, simp add: seq_thoare_r)
 
-lemma hl_cond:
+lemma hl_cond [hoare_safe]:
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
   assumes "H{B \<and> P} C\<^sub>1 {Q}" "H{\<not>B \<and> P} C\<^sub>2 {Q}"
   shows "H{P} if B then C\<^sub>1 else C\<^sub>2 fi {Q}"
@@ -191,7 +200,21 @@ lemma thl_while [hoare_safe]:
   assumes "`P \<longrightarrow> I`" "\<And> z. H[I \<and> B \<and> V = \<guillemotleft>z\<guillemotright>] S [I \<and> V < \<guillemotleft>z\<guillemotright>]" "`\<not> B \<and> I \<longrightarrow> Q`"
   shows "H[P] while B do S od [Q]"
   using assms(1,2,3) thl_conseq thl_while_core by blast
-  
+
+definition while_invariant :: "(bool, 's) expr \<Rightarrow> (bool, 's) expr \<Rightarrow> 's prog \<Rightarrow> 's prog" where
+"while_invariant B I C = while_prog B C"
+
+syntax
+  "_while_inv_itree" :: "logic \<Rightarrow> logic \<Rightarrow> logic \<Rightarrow> logic" ("(while _ /(2invariant/ _) //(2do //_) //od)")
+
+translations
+  "_while_inv_itree B I P" == "CONST while_invariant (B)\<^sub>e (I)\<^sub>e P"
+
+lemma hl_while_invariant [hoare_safe]:
+  assumes "H{I \<and> B} S {I}" "`P \<longrightarrow> I`" "`(\<not> B \<and> I) \<longrightarrow> Q`"
+  shows "H{P} while B invariant I do S od {Q}"
+  by (metis assms(1,2,3) hl_while[of P I B S Q] while_invariant_def[of "(B)\<^sub>e" "(I)\<^sub>e" S])
+
 subsection \<open> Proof Methods \<close>
 
 method assign = (rule hl_assign thl_assign)
@@ -213,6 +236,16 @@ Scan.peek (Args.named_term o Syntax.parse_term o Context.proof_of) >>
    (fn rt => fn ctx => 
      SIMPLE_METHOD (SUBGOAL (fn (goal, i) => Spec_Utils.inst_hoare_rule_tac @{thm hl_while} "I" ctx rt goal) 1))
 \<close> "while loop with invariant"
+
+named_theorems hoare_lemmas
+
+named_theorems prog_defs
+
+method hoare = ((simp add: prog_defs usubst usubst_eval)?, (auto intro!: hoare_safe hoare_lemmas; (simp add: usubst_eval)?))[1]
+
+method vcg_lens = (hoare; expr_lens_taut?; safe?; simp?) \<comment> \<open> Most useful when multiple states are present \<close>
+
+method vcg = (hoare; expr_taut?; safe?; simp?)
 
 subsection \<open> ITree Code Generation \<close>
 
@@ -280,8 +313,6 @@ subsection \<open> Commands \<close>
 
 text \<open> We create a command to allow definition of programs. \<close>
 
-named_theorems prog_defs
-
 ML \<open>
 structure UTP_Program =
 struct
@@ -328,6 +359,21 @@ Outer_Syntax.command @{command_keyword execute} "execute a UTP program"
 end
 \<close>
 
+subsection \<open> Usability Setup \<close>
+
 declare [[literal_variables]]
+
+notation useq (infixr ";" 54)
+
+setup Explorer_Lib.switch_to_quotes
+
+(* Should lens gets appear in VCs, it's better they are concise and pretty *)
+
+notation lens_get ("_<_>" [999,0] 999)
+
+(* Prevent the dollar variable annotations appearing in printed expressions *)
+
+translations
+  "x" <= "_sexp_var x"
 
 end

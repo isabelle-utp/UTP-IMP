@@ -123,11 +123,6 @@ lemma hl_assign [hoare_safe]:
   shows "H{P} x := e :: 's prog {Q}"
   using assms by (fact hl_assigns)
 
-lemma thl_assign [hoare_safe]:
-  assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
-  shows "H[P] x := e :: 's prog [Q]"
-  using assms by (fact thl_assigns)
-
 lemma hl_forward_assign [hoare_safe]:
   fixes C :: "'s prog"
   assumes "vwb_lens x" "\<And> x\<^sub>0. H{$x = v\<lbrakk>\<guillemotleft>x\<^sub>0\<guillemotright>/x\<rbrakk> \<and> P\<lbrakk>\<guillemotleft>x\<^sub>0\<guillemotright>/x\<rbrakk>} C {Q}"
@@ -136,6 +131,32 @@ lemma hl_forward_assign [hoare_safe]:
   apply transfer
   using assigns_init_hoare_general apply blast
   done
+
+lemma hl_backward_assigns [hoare_safe]:
+  assumes "H{P} C {\<sigma> \<dagger> Q}"
+  shows "H{P} C ;; \<langle>\<sigma>\<rangle>\<^sub>a {Q}"
+  using assms
+  by (transfer, simp add: assigns_final_hoare)
+
+lemma thl_assign [hoare_safe]:
+  assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
+  shows "H[P] x := e :: 's prog [Q]"
+  using assms by (fact thl_assigns)
+
+lemma thl_forward_assign [hoare_safe]:
+  fixes C :: "'s prog"
+  assumes "vwb_lens x" "\<And> x\<^sub>0. H[$x = v\<lbrakk>\<guillemotleft>x\<^sub>0\<guillemotright>/x\<rbrakk> \<and> P\<lbrakk>\<guillemotleft>x\<^sub>0\<guillemotright>/x\<rbrakk>] C [Q]"
+  shows "H[P] x := v ;; C [Q]"
+  using assms
+  apply transfer
+  using assigns_init_thoare_general apply blast
+  done
+
+lemma thl_backward_assigns [hoare_safe]:
+  assumes "H[P] C [\<sigma> \<dagger> Q]"
+  shows "H[P] C ;; \<langle>\<sigma>\<rangle>\<^sub>a [Q]"
+  using assms
+  by (transfer, simp add: assigns_final_thoare)
 
 lemma hl_seq: 
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
@@ -156,7 +177,7 @@ lemma hl_cond [hoare_safe]:
   using assms
   by (transfer, simp add: cond_hoare_r)
 
-lemma thl_cond:
+lemma thl_cond [hoare_safe]:
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
   assumes "H[B \<and> P] C\<^sub>1 [Q]" "H[\<not>B \<and> P] C\<^sub>2 [Q]"
   shows "H[P] if B then C\<^sub>1 else C\<^sub>2 fi [Q]"

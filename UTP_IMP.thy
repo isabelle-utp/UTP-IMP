@@ -108,19 +108,14 @@ lemma hl_conseq: "\<lbrakk> H{P\<^sub>2} C :: 's prog {Q\<^sub>2}; `P\<^sub>1 \<
 lemma thl_conseq: "\<lbrakk> H[P\<^sub>2] C :: 's prog [Q\<^sub>2]; `P\<^sub>1 \<longrightarrow> P\<^sub>2`; `Q\<^sub>2 \<longrightarrow> Q\<^sub>1` \<rbrakk> \<Longrightarrow> H[P\<^sub>1] C [Q\<^sub>1]"
   by (transfer, fact thoare_r_conseq)
 
-lemma hl_assigns:
+lemma hl_assigns [hoare_safe]:
   assumes "`P \<longrightarrow> \<sigma> \<dagger> Q`"
-  shows "H{P} \<langle>\<sigma>\<rangle>\<^sub>a :: 's prog {Q}"
+  shows "H{P} \<langle>\<sigma>\<rangle>\<^sub>a {Q}"
   using assms by (transfer, simp add: assigns_hoare_r)
 
-lemma thl_assigns:
-  assumes "`P \<longrightarrow> \<sigma> \<dagger> Q`"
-  shows "H[P] \<langle>\<sigma>\<rangle>\<^sub>a :: 's prog [Q]"
-  using assms by (transfer, simp add: assigns_thoare_r)
-
-lemma hl_assign [hoare_safe]:
+lemma hl_assign:
   assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
-  shows "H{P} x := e :: 's prog {Q}"
+  shows "H{P} x := e {Q}"
   using assms by (fact hl_assigns)
 
 lemma hl_forward_assign [hoare_safe]:
@@ -138,7 +133,12 @@ lemma hl_backward_assigns [hoare_safe]:
   using assms
   by (transfer, simp add: assigns_final_hoare)
 
-lemma thl_assign [hoare_safe]:
+lemma thl_assigns [hoare_safe]:
+  assumes "`P \<longrightarrow> \<sigma> \<dagger> Q`"
+  shows "H[P] \<langle>\<sigma>\<rangle>\<^sub>a [Q]"
+  using assms by (transfer, simp add: assigns_thoare_r)
+
+lemma thl_assign:
   assumes "`P \<longrightarrow> Q\<lbrakk>e/x\<rbrakk>`"
   shows "H[P] x := e :: 's prog [Q]"
   using assms by (fact thl_assigns)
@@ -184,14 +184,14 @@ lemma thl_cond [hoare_safe]:
   using assms
   by (transfer, simp add: cond_thoare_r)
 
-lemma hl_choice:
+lemma hl_choice [hoare_safe]:
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
   assumes "H{P} C\<^sub>1 {Q}" "H{P} C\<^sub>2 {Q}"
   shows "H{P} C\<^sub>1 + C\<^sub>2 {Q}"
   using assms
   by (transfer, simp add: hoare_ndet)
 
-lemma thl_choice:
+lemma thl_choice [hoare_safe]:
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
   assumes "H[P] C\<^sub>1 [Q]" "H[P] C\<^sub>2 [Q]"
   shows "H[P] C\<^sub>1 + C\<^sub>2 [Q]"

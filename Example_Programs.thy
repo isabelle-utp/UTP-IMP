@@ -10,14 +10,15 @@ alphabet st =
 
 record_default st
 
+subsection \<open> Toy Programs \<close>
+
 definition myprog1 :: "st prog" where
-"myprog1 = x := 0 ;; while x < 10 do x := x + 1 od"
+"myprog1 = x := 0 ; while x < 10 do x := x + 1 od"
 
 definition myprog2 :: "st prog" where
-"myprog2 = (x := 0) + (x := 3) + (x := 1)"
+"myprog2 = (x := 0) \<sqinter> (x := 3) \<sqinter> (x := 1)"
 
-program Eucl "(X :: int, Y :: int)" over st =
-"x := X ; y := Y ; while x \<noteq> y do if x < y then y := y - x else x := x - y fi od"
+execute myprog1
 
 value "final_states myprog1 default"
 
@@ -41,7 +42,17 @@ value "final_states myprog2 default"
 
 value "exec_prog myprog2"
 
-value "final_states (Eucl (21, 15)) default"
+subsection \<open> Euclidean algorithm \<close>
+
+program Eucl "(X :: int, Y :: int)" over st =
+"x := X; 
+ y := Y; 
+ while x \<noteq> y 
+ do if x < y 
+    then y := y - x 
+    else x := x - y 
+    fi 
+ od"
 
 execute "Eucl(21, 15)"
 
@@ -68,7 +79,16 @@ lemma Eucl_correct: "H{True} Eucl(X, Y) {\<bar>x\<bar> = gcd X Y}"
   done
 
 program Eucl_ann "(X :: int, Y :: int)" over st =
-"x := X ; y := Y ; while x \<noteq> y invariant gcd X Y = gcd x y do if x < y then y := y - x else x := x - y fi od"
+"x := X; 
+ y := Y; 
+ while x \<noteq> y 
+ invariant gcd X Y = gcd x y 
+ do 
+    if x < y 
+    then y := y - x 
+    else x := x - y 
+    fi 
+ od"
 
 lemma Eucl_correct': "H{True} Eucl_ann(X, Y) {\<bar>x\<bar> = gcd X Y}"
   apply vcg

@@ -5,6 +5,7 @@ theory UTP_IMP
   keywords "execute" :: "diag" and "program" :: "thy_decl"
 begin
 
+unbundle no lattice_syntax
 unbundle UTP_Syntax
 
 subsection \<open> Type and Constructors \<close>
@@ -48,9 +49,9 @@ lift_definition while_prog :: "(bool, 's) expr \<Rightarrow> 's prog \<Rightarro
 
 text \<open> Here, we use the plus operator to model nondeterministic choice. \<close>
 
-instantiation prog :: (type) plus
+instantiation prog :: (type) sup
 begin
-lift_definition plus_prog :: "'s prog \<Rightarrow> 's prog \<Rightarrow> 's prog" is sup .
+lift_definition sup_prog :: "'s prog \<Rightarrow> 's prog \<Rightarrow> 's prog" is sup .
 
 instance ..
 end
@@ -187,14 +188,14 @@ lemma thl_cond [hoare_safe]:
 lemma hl_choice [hoare_safe]:
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
   assumes "H{P} C\<^sub>1 {Q}" "H{P} C\<^sub>2 {Q}"
-  shows "H{P} C\<^sub>1 + C\<^sub>2 {Q}"
+  shows "H{P} C\<^sub>1 \<sqinter> C\<^sub>2 {Q}"
   using assms
   by (transfer, simp add: hoare_ndet)
 
 lemma thl_choice [hoare_safe]:
   fixes C\<^sub>1 C\<^sub>2 :: "'s prog"
   assumes "H[P] C\<^sub>1 [Q]" "H[P] C\<^sub>2 [Q]"
-  shows "H[P] C\<^sub>1 + C\<^sub>2 [Q]"
+  shows "H[P] C\<^sub>1 \<sqinter> C\<^sub>2 [Q]"
   using assms
   by (transfer, simp add: thoare_ndet)
 
@@ -324,7 +325,7 @@ lemma code_seq [code]: "seq_prog \<lbrakk>P\<rbrakk>\<^sub>I \<lbrakk>Q\<rbrakk>
 lemma code_cond [code]: "cond_prog \<lbrakk>P\<rbrakk>\<^sub>I b \<lbrakk>Q\<rbrakk>\<^sub>I = \<lbrakk>\<lambda> s. if b s then P s else Q s\<rbrakk>\<^sub>I"
   by (transfer, auto simp add: rcond_def, expr_auto)
 
-lemma code_choice [code]: "\<lbrakk>P\<rbrakk>\<^sub>I + \<lbrakk>Q\<rbrakk>\<^sub>I = \<lbrakk>\<lambda> s. Vis {0 \<mapsto> P s, 1 \<mapsto> Q s}\<rbrakk>\<^sub>I"
+lemma code_choice [code]: "\<lbrakk>P\<rbrakk>\<^sub>I \<sqinter> \<lbrakk>Q\<rbrakk>\<^sub>I = \<lbrakk>\<lambda> s. Vis {0 \<mapsto> P s, 1 \<mapsto> Q s}\<rbrakk>\<^sub>I"
   by (transfer, auto)
 
 lemma code_while [code]: "while_prog b \<lbrakk>P\<rbrakk>\<^sub>I = \<lbrakk>iterate b P\<rbrakk>\<^sub>I"
